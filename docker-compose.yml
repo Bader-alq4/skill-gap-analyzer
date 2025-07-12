@@ -1,4 +1,4 @@
-version: "3.8"
+# docker-compose.yml
 services:
   backend:
     build:
@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile.backend
     ports:
       - "8000:8000"
+    env_file:
+      - .env
 
   frontend:
     build:
@@ -13,7 +15,10 @@ services:
       dockerfile: Dockerfile.frontend
     ports:
       - "8501:8501"
+    env_file:
+      - .env
     environment:
+      # Point to the backend by service name on the shared network
       API_BASE_URL: "http://backend:8000/api"
     depends_on:
       - backend
