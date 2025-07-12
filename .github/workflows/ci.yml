@@ -10,6 +10,14 @@ on:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
+    # Provide an API key for OpenAI client instantiation during tests
+    # Make sure to set OPENAI_API_KEY as a GitHub secret in your repo settings!
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+    steps:
+  test-and-build:
+    runs-on: ubuntu-latest
 
     steps:
       # 1. Check out the repository
