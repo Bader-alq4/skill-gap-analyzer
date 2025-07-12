@@ -1,7 +1,6 @@
 # .github/workflows/ci.yml
 name: CI
 
-# 1. When to run this pipeline
 on:
   push:
     branches: [ main ]
@@ -10,39 +9,34 @@ on:
 
 jobs:
   test-and-build:
-    # 2. Use a GitHub-hosted Ubuntu runner
     runs-on: ubuntu-latest
 
     steps:
-      # 3. Check out your code from GitHub
-      - name: Checkout repository
+      # 1. Check out the repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      # 4. Set up Python for your tests
-      - name: Set up Python 3.12
+      # 2. Set up Python 3.12
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.12"
+          python-version: '3.12'
 
-      # 5. Install dependencies & spaCy model
-      - name: Install Python dependencies
+      # 3. Install dependencies (no venv needed on GitHub runner)
+      - name: Install dependencies & download spaCy model
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           python -m spacy download en_core_web_sm
 
-      # 6. Run your test suite
+      # 4. Run tests with pytest
       - name: Run pytest
         run: |
-          source venv/bin/activate
           pytest --maxfail=1 --disable-warnings -q
 
-      # 7. Build your backend Docker image
+      # 5. Build Docker images to verify Dockerfiles
       - name: Build backend Docker image
         run: docker build -t skill-gap-backend -f Dockerfile.backend .
 
-      # 8. Build your frontend Docker image
       - name: Build frontend Docker image
         run: docker build -t skill-gap-frontend -f Dockerfile.frontend .
