@@ -1,0 +1,6 @@
+{
+    "Data Scientist": ["Python","Pandas","scikit-learn","SQL","Statistics"],
+    "ML Engineer": ["Python","PyTorch","TensorFlow","Docker","Kubernetes"],
+    "Backend Engineer": ["Python","FastAPI","Docker","PostgreSQL","REST"]
+  }
+  
