@@ -1,15 +1,23 @@
-# docker-compose.yml
+version: "3.8"
+
 services:
   backend:
+    container_name: skillgapanalyzer-backend
     build:
       context: .
       dockerfile: Dockerfile.backend
     ports:
-      - "8000:8000"
+      - "8000:8000"             # maps host:container
     env_file:
-      - .env
+      - .env                    # make sure OPENAI_API_KEY lives here
+    environment:
+      # you can override or add more here if needed
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - app-network
 
   frontend:
+    container_name: skillgapanalyzer-frontend
     build:
       context: .
       dockerfile: Dockerfile.frontend
@@ -18,7 +26,13 @@ services:
     env_file:
       - .env
     environment:
-      # Point to the backend by service name on the shared network
-      API_BASE_URL: "http://backend:8000/api"
+      # Point the Streamlit UI at the backend by service name & port
+      - API_BASE_URL=http://backend:8000/api
     depends_on:
       - backend
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

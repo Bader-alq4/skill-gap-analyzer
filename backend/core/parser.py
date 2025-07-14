@@ -1,53 +1,76 @@
 # backend/core/parser.py
 
 import re
+import json
+from pathlib import Path
 import spacy
 import fitz  # PyMuPDF
 import difflib
+from backend.core.analyzer import load_role_skills
 
-# Load spaCy model for NER (if used for additional skill detection)
-nlp = spacy.load("en_core_web_sm")
+# ----------------------------------------------------------------------------
+# 1. Load skills from external JSON and roles.json, then union them
+# ----------------------------------------------------------------------------
 
-# Canonical known skills list (exact forms)
-KNOWN_SKILLS = [
-    "Python", "Docker", "Kubernetes", "TensorFlow", "PyTorch",
-    "FastAPI", "SQL", "REST"
-]
-# Lowercase for fuzzy matching lookups
+def load_known_skills(path: Path | str = None) -> list[str]:
+    """
+    Load a list of canonical skills from known_skills.json.
+    Defaults to 'known_skills.json' in this directory.
+    """
+    if path is None:
+        path = Path(__file__).parent / "known_skills.json"
+    return json.loads(Path(path).read_text())
+
+# a) Skills explicitly defined in known_skills.json
+_known = set(load_known_skills())
+# b) Skills listed per-role in roles.json
+_roles = set(
+    skill
+    for skills in load_role_skills().values()
+    for skill in skills
+)
+# c) Combine into a single canonical set
+KNOWN_SKILLS = sorted(_known | _roles)
+
+# Lowercase list for fuzzy matching
 KNOWN_LC = [s.lower() for s in KNOWN_SKILLS]
 
-# Regex pattern to catch exact keyword matches
-pattern = re.compile(r"\b(?:" + "|".join(KNOWN_SKILLS) + r")\b", flags=re.IGNORECASE)
-
+# Compile a regex to catch any exact-skill mention
+pattern = re.compile(
+    r"\b(?:" + "|".join(map(re.escape, KNOWN_SKILLS)) + r")\b",
+    flags=re.IGNORECASE,
+)
+# ----------------------------------------------------------------------------
+# 2. Normalization & Extraction Helpers
+# ----------------------------------------------------------------------------
 
 def normalize_skill(raw: str, cutoff: float = 0.7) -> str:
     """
-    Normalize a raw skill string to a canonical skill from KNOWN_SKILLS.
-    Uses substring matching, fuzzy matching, and regex for best coverage.
-    If no close match exceeds cutoff, return the original raw string.
+    Normalize a raw skill string to a canonical skill from KNOWN_SKILLS:
+    1. exact match, 2. substring, 3. difflib fuzzy match, or 4. return raw
     """
     word = raw.strip()
     if not word:
         return word
     lw = word.lower()
 
-    # 1. Exact-case-insensitive match via regex
+    # 1. Exact-case-insensitive match
     for skill in KNOWN_SKILLS:
         if re.fullmatch(skill, word, flags=re.IGNORECASE):
             return skill
 
-    # 2. Substring match: e.g. 'dockerized' contains 'docker'
+    # 2. Substring match
     for skill in KNOWN_SKILLS:
         if skill.lower() in lw:
             return skill
 
-    # 3. Fuzzy matching with difflib
-    matches = difflib.get_close_matches(lw, KNOWN_LC, n=1, cutoff=cutoff)
-    if matches:
-        idx = KNOWN_LC.index(matches[0])
+    # 3. Fuzzy match
+    match = difflib.get_close_matches(lw, KNOWN_LC, n=1, cutoff=cutoff)
+    if match:
+        idx = KNOWN_LC.index(match[0])
         return KNOWN_SKILLS[idx]
 
-    # 4. No match: return raw input
+    # 4. No match
     return word
 
 
@@ -61,19 +84,17 @@ def extract_text(pdf_bytes: bytes) -> str:
 
 def extract_skills(text: str) -> list[str]:
     """
-    Extract skills from plain text using regex + spaCy NER on KNOWN_SKILLS,
-    then normalize each via fuzzy matching.
+    Extract skills from text by:
+      1. regex exact matches
+      2. spaCy NER against KNOWN_SKILLS
+      3. fuzzy normalization
     """
-    # 1. Regex-based exact matches
     found = {m.group(0) for m in pattern.finditer(text)}
-    # 2. spaCy NER for entities matching known skills
     doc = nlp(text)
     for ent in doc.ents:
         if ent.text in KNOWN_SKILLS:
             found.add(ent.text)
-    # 3. Fuzzy normalize all found skills
     normalized = [normalize_skill(s) for s in found]
-    # 4. Return sorted unique list
     return sorted(set(normalized))
 
 
@@ -83,3 +104,6 @@ def extract_user_skills_manual(manual_input: str) -> list[str]:
     """
     raw_skills = [s for s in manual_input.split(",") if s.strip()]
     return [normalize_skill(s) for s in raw_skills]
+
+# Load spaCy model after function definitions to avoid startup errors in tests
+nlp = spacy.load("en_core_web_sm")
